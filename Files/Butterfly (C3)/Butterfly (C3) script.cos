@@ -11,6 +11,32 @@
 *# GB_Category = 3
 *# Agent Author = "Creature Labs"
 
+** Purpose:
+**  - Behaviour scripts for Butterfly/Caterpillar family.
+**  - Handles lifecycle transitions (egg/caterpillar -> pupa -> butterfly), roaming,
+**    feeding, egg-laying (layg), morphing (morf -> adult), and spawning of caterpillars.
+**  - This file contains both the adult (butterfly) and the caterpillar agent templates and timers.
+**
+** Conventions & important notes:
+**  - ovXX variables are persistent per-agent state. vaXX are temporary/local variables used in scripts.
+**  - Tick units: script uses ticks for time. (Tick-to-seconds is typically 20 ticks per second.)
+**
+** OV / VA quick reference
+**  - ov00 : high-level state (0..99) used to pick behaviours (roam, feed, morph, die, etc.)
+**  - ov01 : age / timer counter (ticks)
+**  - ov02 : energy / food level
+**  - ov10 : horizontal direction (-1 left, +1 right)
+**  - ov11 : vertical direction (-1 up, 0 neutral, +1 down)
+**  - ov30..ov36, ov37..ov39 : sprite base indices used for animation orientation
+**  - ov61 : bioenergy
+**  - ov70 : misc state/flag used by some behaviours
+**  - ov72..ov74 : thresholds for feeding/growth (species-specific)
+**  - ov75 : additional flag used in roam
+**  - ov77 : temporary bootstrap flag used by scrp 5
+**  - va## : temporary variables used locally per subroutine (check each subr for exact usage)
+**
+** Template: adult butterfly creation (this block creates a caterpillar agent template used by some spawns)
+
 new: simp 2 13 2 "caterpillar" 131 0 800
 accg 3
 perm 99
@@ -21,7 +47,7 @@ attr 195
 
 bhvr 16
 
-
+** Pose base indices
 setv ov30 12
 
 setv ov31 20
@@ -36,7 +62,7 @@ setv ov35 52
 
 setv ov36 48
 
-
+** Add ov36 offset to each base (compute final bases)
 addv ov30 ov36
 addv ov31 ov36
 addv ov32 ov36
@@ -50,16 +76,24 @@ setv ov37 108
 setv ov38 123
 setv ov39 128
 
+** Initial state / tuning parameters
 setv ov00 6
 setv ov70 0
+*age
 setv ov01 5990
+*target agent
 seta ov16 null
+*vertical direction
 setv ov11 -1
+*bioenergy
 setv ov61 50
+*food thresholds
 setv ov72 200
 setv ov73 250
 setv ov74 350
+*energy
 setv ov02 600
+*random direction
 setv va66 rand 0 1
 doif va66 eq 0
 	anim [122]
@@ -70,20 +104,26 @@ else
 endi
 setv va50 rand 1500 2000
 setv va51 rand 700 700
+*move into game
 mvsf game "ch_x" game "ch_y"
+*set y-velocity to 0
 setv vely 0
 
-
+** Main butterfly timer (family 2, gallery 13, agent 1) - script id 9
+** Purpose: age/energy bookkeeping for metabolism, obstacle avoidance, state switching, death condition.
 scrp 2 13 1 9
+*metabolism
 	addv ov01 1
 	subv ov02 1
 
+*drown in water
 	doif carr = null
 		doif rtyp room ownr = 8 or rtyp room ownr = 9
 			subv ov02 100
 		endi
 	endi
 
+*obstacle checking
 	doif obst 0 lt 30
 		setv ov10 1
 		setv ov11 -1
@@ -99,6 +139,8 @@ scrp 2 13 1 9
 	doif obst 3 lt 30
 		setv ov11 -1
 	endi
+
+* If in water room without being carried, provide an upward bounce and energy reduction
 	doif carr = null
 		doif rtyp room ownr = 8
 			subv ov02 50
@@ -107,14 +149,17 @@ scrp 2 13 1 9
 		endi
 	endi
 
+*death conditions: age or starvation
 	doif ov01 gt 6000 or ov02 <= 0
 		setv ov00 99
 	endi
-
+**State-driven behaviour
+*If flagged for death, die
 	doif ov00 eq 99
 		gsub die_
 	endi
 
+*if hungry, switch to feeding state
 	doif ov02 lt ov72
 		setv ov00 1
 	endi
@@ -126,6 +171,7 @@ scrp 2 13 1 9
 		gsub goup
 	endi
 
+* State change when energy rises above threshold - seeking mates in the spring (example of conditional breeding/flight)
 	doif ov02 gt ov73
 		doif ov70 eq 0
 			doif sean eq 1
@@ -133,25 +179,37 @@ scrp 2 13 1 9
 			endi
 		endi
 	endi
-	doif ov00 eq 2
 
+*If seeking mate
+	doif ov00 eq 2
+*flock behaviour
 		gsub flok
 	endi
+*if ov00 is 3, go to disp subroutine
 	doif ov00 eq 3
 		gsub disp
 	endi
+*If ov00 is 4 and pregnant, go to lay egg subroutine
 	doif ov00 eq 4
 		doif ov70 eq 1
 			gsub layg
 		endi
 	endi
 
+*if state is 0, roam
 	doif ov00 eq 0
 		gsub roam
 	endi
 
 	stop
 
+* -----------------------------
+* Subroutines
+* -----------------------------
+
+** subr die_ — spawn a carcass/caterpillar and remove this agent
+** Inputs/read: ov10 (direction), posx/posy for spawn placement
+** Side effects: create a caterpillar agent at an offset and remove current agent
 	subr die_
 		setv va50 posx
 		setv va51 posy
@@ -180,6 +238,9 @@ scrp 2 13 1 9
 		kill targ
 	retn
 
+** subr gfod — feeding behaviour
+** Purpose: find food target (ov16), approach it and pollinate, restoring energy
+** Reads: ov16 (target), writes ov02 (energy) and ov00 (state)
 	subr gfod
 
 		setv va47 2
@@ -213,6 +274,8 @@ scrp 2 13 1 9
 		endi
 	retn
 
+** subr flok — flocking / group behaviour
+** Purpose: find nearby group center and move toward it (sets ov00 -> 3 if successful)
 	subr flok
 		setv va47 2
 		setv va48 13
@@ -266,11 +329,14 @@ scrp 2 13 1 9
 		stop
 	retn
 
+*sets to 'I am pregnant' state and resets target.
 	subr disp
 		setv ov00 4
 		seta ov16 null
 	retn
 
+** subr layg — egg-laying behaviour (spawn caterpillar agents around a found target)
+** Note: this routine finds a host/plant and spawns caterpillar eggs
 	subr layg
 		inst
 		setv va47 2
@@ -339,6 +405,7 @@ scrp 2 13 1 9
 		stop
 	retn
 
+** subr roam — random wandering behaviour
 	subr roam
 		setv va66 rand 0 30
 
@@ -355,6 +422,7 @@ scrp 2 13 1 9
 		stop
 	retn
 
+** subr goup — upward movement / escape behaviour
 	subr goup
 		setv va66 rand 0 20
 		doif va66 eq 0
@@ -371,11 +439,13 @@ scrp 2 13 1 9
 		stop
 	retn
 
+** subr vect — generate velocity components (va10, va11) used by move
 	subr vect
 		setv va10 rand 1 6
 		setv va11 rand 1 6
 	retn
 
+** subr anim — set base/anim frames based on direction and vertical movement
 	subr anim
 		doif ov10 lt 0
 			base 0
@@ -388,6 +458,7 @@ scrp 2 13 1 9
 		endi
 	retn
 
+** subr move — apply calculated movement
 	subr move
 		mulv va10 ov10
 		mulv va11 ov11
@@ -395,6 +466,7 @@ scrp 2 13 1 9
 
 	retn
 
+** subr find — nearest-target search helper (sets ov16)
 	subr find
 		setv va99 99999999
 		seta va58 null
@@ -431,6 +503,8 @@ scrp 2 13 1 9
 		endi
 		targ ownr
 	retn
+
+** subr hunt — face & move toward ov16 target
 	subr hunt
 		inst
 		doif ov16 <> null
@@ -456,8 +530,11 @@ scrp 2 13 1 9
 		endi
 	retn
 
+**end timer script for butterfly
 endm
 
+*Caterpillar egg timer
+** Purpose: periodically attempt to spawn new caterpillars near the egg.
 scrp 2 18 2 9
 
 	addv ov01 1
@@ -479,7 +556,7 @@ scrp 2 18 2 9
 				addv va66 1
 			next
 			doif va66 <= 4
-
+*Create caterpillar
 				new: simp 2 13 2 "caterpillar" 131 0 800
 				accg 3
 				perm 99
@@ -545,33 +622,38 @@ scrp 2 18 2 9
 
 endm
 
+** Caterpillar main script (family 2, gallery 13, agent 2) - scrp 2 13 2 9
+** Purpose: similar to adult timer but handles caterpillar-specific stages, morphing, and eventual emergence (subr bfly).
 scrp 2 13 2 9
 
 	fric 80
-
+*add to timer
 	addv ov01 1
+*drowning
 	doif carr = null
 		doif rtyp room ownr = 8 or rtyp room ownr = 9
 			subv ov02 100
 		endi
 	endi
 
-
+*energy drains
 	doif ov00 ne 6
 		subv ov02 1
 	endi
 
+*die if flagged for death
 	doif ov00 eq 99
 		gsub die_
 	endi
 
-
+* elasticity tuning based on obstacle below
 	doif obst 3 gt 4
 		elas 5
 	else
 		elas 80
 	endi
 
+*state-driven behaviour
 	doif ov00 eq 0
 		gsub gplt
 	endi
@@ -613,6 +695,9 @@ scrp 2 13 2 9
 
 	stop
 
+***Caterpillar subroutines:
+
+*Die subroutine - spawn small carcass and remove live caterpillar
 	subr die_
 		setv va50 posx
 		setv va51 posy
@@ -646,6 +731,8 @@ scrp 2 13 2 9
 		kill targ
 
 	retn
+
+*go to plant subroutine
 	subr gplt
 		setv ov11 0
 		setv va47 2
@@ -676,6 +763,7 @@ scrp 2 13 2 9
 		stop
 	retn
 
+*go up - caterpillar climbs plant when preparing to pupate
 	subr goup
 		inst
 		doif ov16 <> null
@@ -713,6 +801,7 @@ scrp 2 13 2 9
 		stop
 	retn
 
+*eat plant - regains energy (no actual eating of plant is done)
 	subr eat_
 		setv va47 2
 		setv va48 4
@@ -739,6 +828,7 @@ scrp 2 13 2 9
 
 	retn
 
+** subr sele — select a target via rtar if none is stored
 	subr sele
 		setv ov11 0
 		targ ov16
@@ -774,6 +864,7 @@ scrp 2 13 2 9
 		stop
 	retn
 
+** subr redy — readiness check while climbing / preparing to pupate
 	subr redy
 		inst
 		doif ov16 <> null
@@ -809,6 +900,7 @@ scrp 2 13 2 9
 
 	retn
 
+** subr morf — morph into pupa/adult (sets pose/base and state to 6)
 	subr morf
 		doif ov10 <= 0
 			base ov37
@@ -839,6 +931,7 @@ scrp 2 13 2 9
 
 	retn
 
+** subr bfly — generate a butterfly (spawn adult) from a pupa; used by mature caterpillars
 	subr bfly
 		setv va50 posl
 		setv va51 post
@@ -887,6 +980,7 @@ scrp 2 13 2 9
 		slow
 	retn
 
+	** subr roam (variant)
 	subr roam
 		setv va66 rand 0 10
 
@@ -908,11 +1002,13 @@ scrp 2 13 2 9
 		stop
 	retn
 
+*vect - random velocity
 	subr vect
 		setv va10 rand 4 8
 		setv va11 rand 10 12
 	retn
 
+*anim - choose base and anim frames based on direction
 	subr anim
 		doif ov10 lt 0
 			doif ov11 eq 0
@@ -948,6 +1044,7 @@ scrp 2 13 2 9
 		endi
 	retn
 
+*move variant - apply velocity
 	subr move
 
 		mulv va10 ov10
@@ -959,6 +1056,7 @@ scrp 2 13 2 9
 
 	retn
 
+*find subroutine
 	subr find
 		setv va99 99999999
 		seta va58 null
@@ -994,6 +1092,8 @@ scrp 2 13 2 9
 		endi
 		targ ownr
 	retn
+
+*hunt subroutine
 	subr hunt
 		inst
 		doif ov16 <> null
@@ -1014,8 +1114,10 @@ scrp 2 13 2 9
 		endi
 	retn
 
+**end of caterpillar timer script
 endm
 
+** Caterpillar Visual / pose scripts (short timers) — keep these for pose/animation switching and special cases
 scrp 2 13 2 257
 	accg 3
 	setv vely 0
@@ -1044,6 +1146,7 @@ scrp 2 13 2 257
 
 endm
 
+*caterpillar pickup script
 scrp 2 13 2 4
 	setv ov77 1
 	tick 0
@@ -1051,7 +1154,7 @@ scrp 2 13 2 4
 	aero 0
 endm
 
-
+*caterpillar collision script
 scrp 2 13 2 6
 	doif ov00 eq 6
 		base 0
@@ -1064,6 +1167,7 @@ scrp 2 13 2 6
 	endi
 endm
 
+*caterpillar drop script
 scrp 2 13 2 5
 	accg 3
 	doif ov77 = 1
@@ -1095,6 +1199,7 @@ scrp 2 13 2 5
 	endi
 endm
 
+*dead butterfly timer
 scrp 2 10 11 9
 	addv ov01 1
 	doif ov01 > 50
@@ -1120,6 +1225,7 @@ scrp 2 10 11 9
 	endi
 endm
 
+*dead caterpillar timer
 scrp 2 10 12 9
 	doif carr = null
 		kill ownr
@@ -1151,18 +1257,21 @@ scrp 2 10 12 9
 
 endm
 
+*butterfly eat script
 scrp 2 13 1 12
 	stim writ from 80 1
 	kill ownr
 
 endm
 
+*caterpillar eat script
 scrp 2 13 2 12
 	stim writ from 80 1
 	kill ownr
 
 endm
 
+***REMOVAL
 rscr
 enum 2 13 1
 	kill targ

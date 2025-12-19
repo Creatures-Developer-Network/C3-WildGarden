@@ -11,8 +11,39 @@
 *# GB_Category = 3
 *# Agent Author = "Creature Labs"
 
+** Purpose:
+**  - Behaviour script for the Balloon Bug agent. Handles lifecycle, movement (air + ground),
+**    hunting for flowers, reproduction (egg spawn), reactions to hits/pulls, and death.
+**  - This is a conversion from C3 assets; comments add explanations for ov/va variable roles,
+**    important thresholds and side-effects to aid maintainability.
+**
+** Important ov/va variables used in this script (shared conventions):
+**  - ov00: state
+**      * 0 = in air (flying/drifting)
+**      * 1 = on ground (walking)
+**      * 3 = hunting (targeting a flower)
+**  - ov01: age counter (ticks). Incremented in main timer. Used for reproduction/aging/death.
+**  - ov02: energy / hunger (decrements over time). When low, bug seeks food (flowers).
+**  - ov10: horizontal direction (-1 left, +1 right)
+**  - ov11: vertical direction (-1 up, +1 down)
+**  - ov12: X velocity component
+**  - ov13: Y velocity component
+**  - ov14: max X velocity
+**  - ov15: max Y velocity
+**  - ov16: targ reference to current target (e.g., flower) used during hunting
+**  - ov90: indecision / cooldown counter used to avoid rapid direction flips
+**  - ov91: change-activity counter (used for switching between hopping and flying and timeouts)
+**
+** Units / notes:
+**  - Script ticks: the global 'tick' setting on creation determines how often the main timer runs. (typically, 20 ticks = 1 second)
+**  - Random ranges: `rand A B` selects inclusive integers.
+**  - tmvt checks prevent spawning on areas outside the room system; keep those guards to avoid errors for players.
+**
+** Top-level creation (agent template)
 new: simp 2 13 9 "balloonbug" 42 0 3000
+*mouseable, activateable, suffers collisions and physics
 attr 198
+*activate 1, 2, pickup, eat, hit
 bhvr 59
 clac 0
 
@@ -22,7 +53,7 @@ setv ov61 40
 mvsf game "ch_x" game "ch_y"
 
 tick 5
-
+*direction setting - horizontal and vertical
 setv ov10 rand 0 1
 doif ov10 eq 0
 	setv ov10 -1
@@ -35,12 +66,14 @@ endi
 
 
 **100% copypasted scripts
-***balloon bug activate
+***balloon bug activate - runs when a creature pushes the bug
 scrp 2 13 9 1
+*if state is in air
 	doif ov00 eq 0
-
+*activity change
 		setv ov91 100
 	endi
+*stimulate pushing creature with 'play bug'
 	targ from
 	doif fmly eq 4
 		stim writ targ 85 1
@@ -48,23 +81,17 @@ scrp 2 13 9 1
 endm
 
 
-*****Balloon bug timer
+*****Balloon bug timer - lifecycle and behaviour
+** Responsibilities:
+**  - age and energy bookkeeping (metabolism)
+**  - reproduction checks (local population + egg caps)
+**  - hunting behaviour: find nearest flower and enter hunting state
+**  - state-specific movement (ground/walking vs flying)
+**  - collision/wall avoidance + velocity application
 scrp 2 13 9 9
-**OV00 is state
-*0=in air
-*1=on ground
-*3=hunting
-
-**OV12 X velocity
-**OV13 Y velocity
-**OV14 is max X velocity
-**OV15 is max Y velocity
-
-**OV90 indecision counter
-**OV91 is change activity counter
-
 *increase age
 	addv ov01 1
+* --- Reproduction: create eggs if old enough and local population low ---
 *if old enough
 	doif ov01 ge 100
 		doif totl 2 13 9 lt 20
@@ -73,10 +100,10 @@ scrp 2 13 9 9
 			esee 2 13 9
 				addv va99 1
 			next
-*if less than 4 balloon bugs in sight
+*if less than 10 balloon bugs (2 13 9) in sight
 			doif va99 le 10
 				setv va98 totl 2 18 24
-*	and less than 3 balloon bug eggs in world
+*	and less than 3 balloon bug eggs (2 18 24) in world
 				doif va98 lt 3
 *		create some eggs
 					inst
@@ -94,6 +121,7 @@ scrp 2 13 9 9
 			endi
 		endi
 	endi
+*return targ to ownr explicitly after making eggs to avoid errors
 	targ ownr
 	
 *die if older than 5 to 15 minutes old
@@ -102,9 +130,11 @@ scrp 2 13 9 9
 		stop
 	endi
 
+*subtract energy
 	subv ov02 1
 
-*if need food then track down flower
+* --- Hunger: find a flower if energy low and not currently hunting/grounded ---
+*if need food then track down flower (ov02 low, not already hunting or on ground)
 	doif ov02 le rand 100 200 and ov00 ne 3 and ov00 ne 1
 *	if on the floor get off it
 		doif ov00 eq 1
@@ -131,41 +161,51 @@ scrp 2 13 9 9
 			endi
 		next
 		slow
+*set target reference to closest flower and enter hunting state
 		doif va02 ne null
 			seta ov16 va02
 			setv ov00 3
 		else
+*if no flower found, return to flying and reset activity counter
 			setv ov00 0
 			setv ov91 0
 		endi
 	endi
 
-*hunting
+* --- Hunting state: try to reach target flower and eat if touching ---
 	doif ov00 eq 3
+*lower speed to help the hunt
 		setv ov14 3
 		setv ov15 3
+*home in on target
 		gsub home
+*apply velocity to velx/vely
 		gsub velo
 *	see if touching flower
 		inst
 		doif ov16 ne null
 			doif touc ov16 ownr gt 0
+*pollinate
 				mesg writ ov16 303
+*return to flying state and replenish energy on pollination
 				setv ov00 0
 				addv ov02 100
 			endi
 		else
+*if target lost, return to flying
 			setv ov00 0
 		endi
 		slow
 	endi
 
 
-
+** Ground behaviour: walking and launching (landing -> jump back into air)
+** ov91 is used as a 'time on ground' counter; when it exceeds a threshold the bug jumps.
+** Animation sequences differ by facing direction.
 **if on ground
 	doif ov00 eq 1
 		addv ov91 1
-*	go to in air mode
+*	go to in air mode when activity change reaches a threshold
 		doif ov91 ge rand 30 50
 			doif ov10 lt 0
 				anim [8 9 10 11 12 13 14 15 16]
@@ -174,12 +214,15 @@ scrp 2 13 9 9
 				anim [22 23 24 25 26 27 28 29 30]
 				accg 0.3
 			endi
+*upward velocity
 			setv vely -10
 			over
+*return to flying, reset activity change counter
 			setv ov00 0
 			setv ov91 0
 		endi
 
+*if not falling (ie on ground) walk left or right
 		doif fall eq 0
 			doif ov10 lt 0
 				gsub left
@@ -187,10 +230,10 @@ scrp 2 13 9 9
 				gsub rite
 			endi
 		endi
-
+*end on-ground behavour
 	endi
 
-
+** Flying behaviour: drifting with periodic direction randomness and wall avoidance.
 **if flying
 	doif ov00 eq 0
 		addv ov91 1
@@ -208,12 +251,13 @@ scrp 2 13 9 9
 
 
 		endi
-*set max velocity
+* set max velocity
 		setv ov14 5
 		setv ov15 5
-
+* reduce indecision cooldown
 		subv ov90 1
 
+*check obstacles
 		gsub wall
 **if not changing X direction because of walls..
 		doif ov90 le 0
@@ -232,8 +276,9 @@ scrp 2 13 9 9
 				addv ov90 rand 2 5
 			endi
 		endi
-
+*set velx/vely
 		gsub velo
+*play animation
 		gsub anim
 
 
@@ -255,7 +300,10 @@ scrp 2 13 9 9
 
 
 ********VELOCITY GIVER
-	subr velo
+**  - Purpose: adjust ov12/ov13 (velocity components) toward maxes (ov14/ov15),
+**    then set global velx/vely from those components.
+**  - Uses: ov10/ov11 as intended direction (-1/+1); ov14/ov15 as magnitude caps.
+subr velo
 		doif ov10 lt 0
 *trying to go left
 			negv ov14
@@ -290,6 +338,8 @@ scrp 2 13 9 9
 	retn
 
 ********AVOID WALLS ROUTINE
+**  - Purpose: check obstacle distances (obst N) and flip ov10/ov11 as necessary.
+**  - Sets va00 / va01 flags to indicate which axis had to be changed (used by randomness logic).
 	subr wall
 *change direction to right
 		doif obst 0 lt 100 and ov10 lt 0
@@ -314,6 +364,7 @@ scrp 2 13 9 9
 	retn
 
 ********ANIMATION ROUTINE - flying only
+**  - Purpose: choose flying animation frames based on vertical velocity (ov12).
 	subr anim
 **flying movement animation
 		doif ov12 gt 0
@@ -324,6 +375,8 @@ scrp 2 13 9 9
 	retn
 
 ***Homing in on target - alters ov10 and ov11 to aim at target (ov16)
+**  - Purpose: compare relative position to ov16 and flip ov10/ov11 so the velo subr will direct motion
+**  - Sets ov00 back to 0 (flying state) if target null or unreachable
 	subr home
 		inst
 		targ ov16
@@ -366,6 +419,9 @@ scrp 2 13 9 9
 		slow
 	retn
 
+*die subroutine
+**  - Purpose: play a death animation sequence depending on direction/velocity, then kill the agent.
+**  - Notes: uses waits and pose switching; final kill ownr removes the agent from the world. Not from C3 originally.
 subr die
 **Check direction
         doif ov12 gt 0 or ov10 gt 0
@@ -394,12 +450,16 @@ subr die
         wait rand 50 100
         kill ownr
 retn
+
+*end balloon bug timer script
 endm
 
+** --- Egg hatching timer (spawns balloon bugs from egg) ---
 **balloon bug egg timer
 scrp 2 18 24 9
 	setv va00 posl
 	setv va01 post
+*create new balloon bug
 	inst
 	new: simp 2 13 9 "balloonbug" 42 0 3000
 	attr 198
@@ -411,7 +471,7 @@ scrp 2 18 24 9
 	mvto va00 va01
 
 
-
+*direction
 	setv ov10 rand 0 1
 	doif ov10 eq 0
 		setv ov10 -1
@@ -422,10 +482,13 @@ scrp 2 18 24 9
 	endi
 
 	tick 5
+*delete egg
 	kill ownr
 endm
 
-*hit script
+* --- Additional Reaction scripts: hits, eating, pulling: note these are new to the GB edition (not from C3) --- *
+
+*balloon bug hit script
 scrp 2 13 9 3
 	snde "cmc3"
 	inst
@@ -441,14 +504,14 @@ scrp 2 13 9 3
 	kill ownr
 endm
 
-*eat script
+*balloon bug eat script
 scrp 2 13 9 12
 	snde "chwp"
 	stim writ from 80 1
 	kill ownr
 endm
 
-*pull
+*balloon bug pull
 scrp 2 13 9 2
 	doif ov00 eq 0
 *make the change activity counter large enough to trip
@@ -466,6 +529,7 @@ next
 enum 2 18 24
 	kill targ
 next
+* Clear specific script slots to avoid duplicates
 scrx 2 13 9 9
 scrx 2 13 9 1
 scrx 2 13 9 2

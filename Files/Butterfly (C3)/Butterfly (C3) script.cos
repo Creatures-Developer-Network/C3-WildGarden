@@ -32,7 +32,7 @@
 **  - ov70 : misc state/flag used by some behaviours
 **  - ov72..ov74 : thresholds for feeding/growth (species-specific)
 **  - ov75 : additional flag used in roam
-**  - ov77 : temporary bootstrap flag used by scrp 5
+**  - ov77 : temporary bootstrap flag used by drop script
 **  - va## : temporary variables used locally per subroutine (check each subr for exact usage)
 **
 ** Template: adult butterfly creation (this block creates a caterpillar agent template used by some spawns)

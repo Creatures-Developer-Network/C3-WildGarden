@@ -15,50 +15,72 @@ new: simp 2 15 9 "trout" 23 0 4000
 accg 0
 perm 30
 tick 8
+*carryable, mouseable, suffers collisions and physics
 attr 195
 aero 10
+*creatures can eat this
 bhvr 16
 elas 10
+*state
 setv ov00 0
+*age
 setv ov01 1000
+*energy
 setv ov02 3000
+*life stage (1 = juvenile, 2 = adult)
 setv ov05 2
+*gender
 setv ov06 va66
+*horizontal direction
 setv ov10 1
+*vertical direction
 setv ov11 -1
+*target agent
 seta ov16 null
+*sex drive
 setv ov20 98
+*bioenergy
 setv ov61 60
+*energy gained from food
 setv ov72 400
+*hunger threshold
 setv ov73 400
+*full energy
 setv ov74 800
 *	setv va50 rand 3500 3500
 *	setv va51 rand 1020 1020
 *	mvto va50 va51
-
+*move fish to GB crosshairs
 mvsf game "ch_x" game "ch_y"
 setv vely 0
+*randomise gender
 doif va66 = 1
 	setv va66 0
 else
 	setv va66 1
 endi
 
-**Stickleback Dropped
+**Stickleback Dropped - enables gravity so it falls into water
 scrp 2 15 9 5
 *	perm 99
 	accg 4
 endm
+
 **Stickleback Eaten
 scrp 2 15 9 12
 	stim writ from 80 4
 	kill ownr
 
 endm
+
 **Stickleback Timer
 scrp 2 15 9 9
+**METABOLISM
+*add to age
 	addv ov01 1
+*subtract from energy
 	subv ov02 1
+*add to sex drive
 	addv ov20 1
 *	doif perm = 99
 *		doif rtyp grap posl post = 8 and rtyp grap posr post = 8 and rtyp grap posl posb = 8 and rtyp grap posr posb = 8
@@ -66,11 +88,13 @@ scrp 2 15 9 9
 *		endi
 *	endi
 
+*Water check: heavy if not in water, floating if in water
 	doif rtyp room ownr <> 8 and rtyp room ownr <> 9
 		accg 4
 	else
 		accg 0
 	endi
+*death conditions
 	doif ov02 <= 0 or ov01 > 8000
 		setv ov00 99
 	endi
@@ -82,13 +106,14 @@ scrp 2 15 9 9
 *		endi
 *	endi
 
+*If old enough, mature from juvenile to adult
 	doif ov01 gt 1500
 		doif ov05 eq 1
 			gsub matr
 		endi
 	endi
 
-
+*obstacle checking
 	doif obst 0 lt 30
 		setv ov10 1
 		setv ov11 -1
@@ -105,10 +130,12 @@ scrp 2 15 9 9
 		setv ov11 -1
 	endi
 
+*If due to die, go to die subroutine
 	doif ov00 eq 99
 		gsub die_
 	endi
 
+*asphyxiate if out of water (energy drain and flop animation)
 	doif carr = null
 		doif rtyp room ownr <> 8 and rtyp room ownr <> 9
 			setv ov11 1
@@ -125,26 +152,31 @@ scrp 2 15 9 9
 		endi
 	endi
 
+*If energy is less than hunger threshold, set state to seek food
 	doif ov02 lt ov73
 		setv ov00 1
 	endi
 
-
+*If sex drive is high, seek mate
 	doif ov20 gt 100
 		setv ov00 2
 	endi
 
-
+*If flagged to die, go to die subroutine
 	doif ov00 eq 99
 		gsub die_
 	endi
+
+*If hungry, go to get food subroutine
 	doif ov00 eq 1
 		gsub gfod
 	endi
 
+*If flagged to seek mate, seek mate.
 	doif ov00 eq 2
-
+*try to change sex
 		gsub chsx
+*temporary variables for family/genus/species/gender
 		setv va47 2
 		setv va48 15
 		setv va49 9
@@ -161,20 +193,22 @@ scrp 2 15 9 9
 		gsub mate
 	endi
 
+*If pregnant, set state to reflect pregnancy.
 	doif ov70 = 1
 		setv ov00 4
 	endi
 
+*If pregnant, go to lay egg subroutine.
 	doif ov00 eq 4
 		gsub layg
 	endi
 
-
+*If anything else, set to roam.
 	doif ov00 eq 0
 		gsub roam
 	endi
 
-
+*die subroutine
 	subr die_
 		setv va50 posl
 		setv va51 post
@@ -206,6 +240,7 @@ scrp 2 15 9 9
 		kill targ
 	retn
 
+*get food subroutine
 	subr gfod
 		setv va47 2
 		setv va48 14
@@ -247,6 +282,7 @@ scrp 2 15 9 9
 		stop
 	retn
 
+*mate subroutine
 	subr mate
 		inst
 		targ ov16
@@ -257,6 +293,7 @@ scrp 2 15 9 9
 			doif va40 eq 1
 				doif ov06 eq 0
 					setv va66 0
+*population cap check
 					enum 2 15 9
 						addv va66 1
 					next
@@ -283,6 +320,7 @@ scrp 2 15 9 9
 		stop
 	retn
 
+*lay egg subroutine
 	subr layg
 		setv va50 posl
 		setv va51 post
@@ -337,6 +375,7 @@ scrp 2 15 9 9
 		stop
 	retn
 
+*mature subroutine - replace juvenile fish with mature fish to avoid bounding box error
 	subr matr
 		doif obst down > 25 and obst rght > 25 and obst left > 5 and obst _up_ > 5
 			setv va50 ov00
@@ -387,7 +426,7 @@ scrp 2 15 9 9
 
 
 
-
+*Roam subroutine
 	subr roam
 		setv va66 rand 0 10
 
@@ -408,6 +447,7 @@ scrp 2 15 9 9
 		stop
 	retn
 
+*change sex subroutine - if no opposite-sex fish exist
 	subr chsx
 		inst
 		setv va88 ov06
@@ -428,6 +468,7 @@ scrp 2 15 9 9
 		endi
 	retn
 
+*seek mate
 	subr seek
 		setv va99 99999999
 		inst
@@ -469,12 +510,13 @@ scrp 2 15 9 9
 		slow
 	retn
 
-
+*Vect subroutine - Create a movement vector
 	subr vect
 		setv va10 rand 6 12
 		setv va11 rand 0 2
 	retn
 
+*Anim subroutine - Choose the right animation based on direction
 	subr anim
 		doif ov10 eq 0
 			loop
@@ -494,6 +536,7 @@ scrp 2 15 9 9
 
 	retn
 
+*Move the fish
 	subr move
 		doif rtyp room ownr = 8 or rtyp room ownr = 9
 			doif posy < 1030 and gmap posx posy = 1
@@ -508,6 +551,8 @@ scrp 2 15 9 9
 		velo va10 va11
 		endi
 	retn
+
+*Find subroutine
 	subr find
 		setv va99 99999999
 		seta va58 null
@@ -546,6 +591,8 @@ scrp 2 15 9 9
 		targ ownr
 		slow
 	retn
+
+*hunt subroutine
 	subr hunt
 		inst
 		doif ov16 <> null
@@ -573,6 +620,7 @@ scrp 2 15 9 9
 		endi
 	retn
 
+*near subroutine - checks proximity for mating
 	subr near
 		setv va40 0
 		inst
@@ -603,6 +651,7 @@ scrp 2 15 9 9
 
 endm
 
+*detritus timer
 scrp 2 10 7 9
 	addv ov01 1
 	doif ov01 gt 200
@@ -627,6 +676,7 @@ scrp 2 10 7 9
 	endi
 endm
 
+*stickletrout spawn egg timer
 scrp 2 18 6 9
 	addv ov01 1
 	setv va50 posl

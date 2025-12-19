@@ -11,6 +11,32 @@
 *# GB_Category = 5
 *# Agent Author = "Creature Labs"
 
+** Purpose:
+**  - Behaviour script for Nudibranch agents.
+**  - Handles drifting/room checks, feeding (consumes nearby food agents), reproduction (breed),
+**    spawning, simple animations, and death/removal logic.
+**
+** Notes / conventions:
+**  - ovXX are persistent per-agent variables (state, age, energy, pose indices, etc.).
+**  - vaXX are temporary/local script variables used as counters, positions, or families/spec selectors.
+**  - TICK units: engine-specific. This script uses tick 10 and increments ov01/ov02. 20 ticks per second is usual.
+**
+** OV quick reference (used in this file)
+**  - ov01 : age counter (ticks). Initialized randomly ~2000..2100.
+**  - ov02 : energy / feeding reserve (ticks). Initialized randomly ~2000..2100.
+**  - ov05 : life stage/state variable used for breeding/behavior gating (0..2)
+**  - ov30, ov31 : base pose indices used for facing/animation
+**  - ov61 : bioenergy
+**  - ov86 : struggle indicator - used in room monitor to adjust accg adjuster
+**  - ov87 : accg adjuster - used in room monitor
+**
+** High-level behaviour summary:
+**  - Main timer (scrp ... 9): runs room monitor, ages the critter, checks hunger and breeding windows.
+**  - If hungry (ov02 <= 500) -> gsub feed (searches for prey within range and kills first found).
+**  - During a limited age window the nudibranch may enter a breeding sequence: gsub breed spawns 2 new nudibranchs nearby.
+**  - Room-check (gsub room) enforces habitat: if outside room type 9 (salt water) for too long the agent will die.
+**
+
 
 new: simp 2 15 21 "nudibranch" 0 0 2000
 attr 192
@@ -31,7 +57,7 @@ mvsf game "ch_x" game "ch_y"
 
 
 pose 46
-
+** BABY ANIM BASES
 setv ov30 46
 setv ov31 59
 
@@ -40,31 +66,43 @@ base ov30
 frat 2
 anim [0 1 2 3 4 5 6 7 8 9 10 11 12 11 10 9 8 7 6 5 4 3 2 1 0 255]
 
-
+*Timer script
+** Responsibilities:
+**  - run room monitor (gsub room)
+**  - age and drain energy
+**  - check death conditions (age, forced death flag ov99, starvation)
+**  - trigger feeding if energy low
+**  - handle breeding window and call breeding behaviour when appropriate
 scrp 2 15 21 9
+*Room check
 	gsub room
 
-
+** SUBTRACT ENERGY
 	subv ov02 1
 
-
+*reduce lifespan
 	subv ov01 1
 
-
+** KILL IF TOO OLD or IF MARKED FOR DEATH or IF STARVED
 	doif ov01 <= 0 or ov99 = 99 or ov02 <= 0
 		gsub death
 	endi
 
-
+** EAT IF HUNGRY
 	doif ov02 <= 500
 		gsub feed
 	endi
 
-
+** LIFE STAGE CHANGES IF NECESSARY
+* Breeding window logic:
+* - If old enough and ov05==0, look for a sheltered spot in room type 9 to youth (ov05->1).
+* - If further along in age and ov05==1, set ov05->2 (ready to spawn).
 	doif ov01 <= 1500 and OV05 = 0
 		inst
 		rnge 200
+* The following checks ensure there is ample space (obst checks) and the agent is not carried and is in salt water
 		doif obst left > 150 and obst rght > 150 and obst _up_ > 150 and obst down > 150 and CARR = null and rtyp room targ = 9
+* mature to youth (ov05 = 1)
 			velo 0 0
 			setv ov30 23
 			setv ov31 36
@@ -74,11 +112,12 @@ scrp 2 15 21 9
 			setv ov05 1
 		endi
 		slow
+*If old enough and already youth
 	elif ov01 <= 1000 and ov05 = 1
 		inst
 		rnge 200
 		doif obst left > 150 and obst rght > 150 and obst _up_ > 150 and obst down > 150 and CARR = null and rtyp room targ = 9
-
+*progress to adulthood
 			velo 0 0
 			setv ov30 0
 			setv ov31 13
@@ -90,22 +129,32 @@ scrp 2 15 21 9
 		slow
 	endi
 
-
+** BREED IF OLD ENOUGH
+* Once at ov05==2, attempt to breed/spawn new nudibranchs
 	doif ov05 = 2
 		gsub breed
 	endi
 
+***SUBROUTINES
 
+** BREEDING
+** subr breed — spawn new nudibranchs if conditions permit
+** Purpose: within suitable salt water room (rtyp 9) and low local population, spawn up to two new nudibranchs
+** Inputs: checks CARR (carried), uses rnge to bound search, esee to count local same-species
+** Side-effects: creates new agents (new: simp ...) then triggers self-death
 	subr breed
+* only breed if not being carried and in correct room
 		doif CARR = null and rtyp room targ = 9
 			rnge 1000
 			inst
+*count other nudibranches
 			esee 2 15 21
 				doif targ <> null
 					addv va00 1
 				endi
 			next
 			slow
+*only breed if local population low
 			doif va00 <= 3
 				snde "nudi"
 				reps 2
@@ -132,7 +181,7 @@ scrp 2 15 21 9
 						mvsf va01 va02
 					endi
 
-
+** BABY ANIM BASES
 					setv ov30 46
 					setv ov31 59
 					base ov30
@@ -142,20 +191,23 @@ scrp 2 15 21 9
 					tick 10
 					slow
 				repe
+*Shift target to owning nudibranch after making babies.
 				targ ownr
-
+** DIE DUE TO TRAUMATIC PREGNANCY
 				gsub death
 			endi
 		endi
 	retn
 
 
-
+** FEEDING
+** subr feed — try multiple prey families in short range and kill the first found
+** Behaviour: looks for targets in three family/spec groups (esee blocks). On first kill, calls gsub grab to animate and cover the kill.
 	subr feed
 		setv va09 0
 		setv va10 0
 		inst
-
+** AQUAMITES
 		rnge 75
 		esee 2 13 8
 			doif targ <> null
@@ -170,7 +222,7 @@ scrp 2 15 21 9
 		setv va09 0
 		doif va10 = 0
 			inst
-
+** WYSTS
 			rnge 75
 			esee 2 15 18
 				doif targ <> null
@@ -186,7 +238,7 @@ scrp 2 15 21 9
 		setv va09 0
 		doif va10 = 0
 			inst
-
+** GUMIN GRASS SEEDS
 			rnge 75
 			esee 2 3 8
 				doif targ <> null
@@ -205,7 +257,8 @@ scrp 2 15 21 9
 		endi
 	retn
 
-
+** GRABBING ANIMATION for capturing prey
+** Side-effects: plays short animation sequence and extends age to represent feeding benefit
 	subr grab
 		anim []
 		base ov31
@@ -217,17 +270,20 @@ scrp 2 15 21 9
 		addv ov01 5000
 	retn
 
-
+** DIE OR BE MARKED TO DIE
 	subr death
+*If we were adult, attempt to breed first
 		doif ov05 = 2
 			gsub breed
 		endi
+* If not carried: play death sound and remove after small delay
 		doif carr = null
 			velo 0 0
 			wait 200
 			snde "ndid"
 			wait 10
 			kill ownr
+*Else, if carried, mark forced-death flag so other logic can handle removal later
 		elif carr <> null
 			doif carr = pntr
 				setv ov99 99
@@ -242,11 +298,15 @@ scrp 2 15 21 9
 	retn
 
 
-
+*Room monitor.
+** subr room — ensure agent stays in preferred habitat - salt water (room type 9). If outside too long, die.
+** Behaviour: slowly adjusts counter while outside, and gives up after 200 cycles.
 	subr room
+* If not in preferred room type, accumulate a counter and increase ov86 to simulate distress
 		doif rtyp room ownr <> 9
 			loop
 				addv ov86 1
+* small increase in counter adjusting acceleration early, larger later to simulate struggling
 				doif ov86 >= 0 and ov86 <= 6
 					addv ov87 .03
 				elif ov86 > 6 and ov86 < 200
@@ -254,19 +314,24 @@ scrp 2 15 21 9
 				endi
 				accg ov87
 			untl rtyp room ownr = 9 or ov86 >= 200
+* if outside habitat too long, wait and die
 			doif ov86 >= 200
 				wait rand 100 400
 				gsub death
 			endi
 		endi
+*Reset struggle counter and accg adjuster if nudibranch returns to salt water
 		doif rtyp room ownr = 9
 			setv ov86 0
 			setv ov87 0
+*drift
 			gsub drft
 		endi
+*set accg to ov87
 		accg ov87
 	retn
 
+** subr drft — choose a random direction to drift and attempt to move (calls obstacle check and move)
 	subr drft
 		setv va70 rand 1 4
 		doif va70 = 1
@@ -282,6 +347,7 @@ scrp 2 15 21 9
 		gsub move
 	retn
 
+*Obstacle checking
 	subr obst
 		doif obst 0 < 50
 			setv ov10 1
@@ -296,16 +362,24 @@ scrp 2 15 21 9
 			setv ov11 -1
 		endi
 	retn
+
+** subr anim — idle animation with random delay for lifelike movement
 	subr anim
 		wait rand 1 10
 		base ov30
 		anim [0 1 2 3 4 5 6 7 8 9 10 11 12 11 10 9 8 7 6 5 4 3 2 1 0]
 		over
 	retn
+
+** subr move — apply velocity
 	subr move
 		velo ov10 ov11
 	retn
+
+*End of timer script
 endm
+
+***REMOVAL
 rscr
 enum 2 15 21
 	kill targ

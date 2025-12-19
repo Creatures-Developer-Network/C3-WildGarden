@@ -51,6 +51,20 @@ setv va49 rand 0 255
 ** ov50 = GENETIC Fruit Swap 
 setv va50 rand 0 255
 
+** OV / important object variables summary
+** ov01 = age (ticks)
+** ov05 = life stage flag (controls growth vs flowering vs wither)
+** ov08 = dynamic section target (adjusted from gen height ov40)
+** ov17 = base flower id for parts (used for cleanup)
+** ov30/ov31 = saved relative pos for flower/fruit creation (posx/posy)
+** ov40 = genetic cane height (1..40, target number of sections)
+** ov41..ov50 = genetic colour/rotation/swap for petals and fruit (0..255)
+** ov70 = y-coordinate for new sections (used in section placement)
+** ov72 = flowering/fruiting stage (0..2)
+** ov90 = temporary flag/cooldown for movement/placement
+** name "sections" = count of bramboo sections actually created
+** name "flowers" = count of bramboo flowers created
+
 ** Create a fruit agent
 inst
 new: simp 2 8 8 "bramboo" 10 97 300
@@ -1218,6 +1232,7 @@ scrp 2 7 6 9
 	endi
 endm
 
+*removal
 rscr
 enum 2 4 13
 	kill targ

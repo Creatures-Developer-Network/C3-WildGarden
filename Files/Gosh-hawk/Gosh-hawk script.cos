@@ -11,6 +11,26 @@
 *# GB_Category = 3
 *# Agent Author = "Creature Labs"
 
+***OV cheat sheet***
+***OV00 state
+*0=in nest, 1=out flying, 2=ready to pounce, 3=back to nest
+*4=hopping after crash, 5=fine refinement of back to nest
+*6=hopping
+
+***0V17 nest targ ID
+***OV18 Grazer hunt targ
+
+***OV70 boredom countdown
+***OV71 fidget countdown
+***OV72 I'm carrying food flag 0=no 1=yes
+***OV73 Holder of what state OV00 was in before hopping
+
+***OV90 targs top position
+***OV91 targs left position
+***OV92 targs right position
+***OV93 Desired upper boundary of flight
+***OV94 Desired lower boundary of flight
+
 new: simp 2 17 4 "hawk" 3 132 200
 attr 3
 pose 2
@@ -45,10 +65,10 @@ scrp 2 16 1 9
 *	endi
 
 	targ ownr
-
+***poo test
 	doif carr eq null
 		doif rand 0 10 eq 0
-
+*Check toilet control
 			setv va00 0
 			rtar 1 1 11
 			doif targ ne null
@@ -56,7 +76,7 @@ scrp 2 16 1 9
 			endi
 			targ ownr
 			doif va00 eq 0
-
+*make poo invisible
 				setv va02 216
 			else
 				setv va02 218
@@ -83,22 +103,22 @@ scrp 2 16 1 9
 		endi
 	endi
 
-
+*if in nest
 	doif ov00 eq 0
 		subv ov70 1
 		doif ov70 le 0
-
+*if bored then go looking
 			setv ov10 1
 			setv ov00 1
 			setv ov70 rand 50 100
 			accg 2
 		else
-
+*maybe have a fidget?
 			subv ov71 1
 			doif ov71 le 0
 				setv va00 rand 0 3
 				doif va00 eq 3
-
+*flap wings
 					doif ov10 lt 0
 						base ov38
 					else
@@ -109,12 +129,12 @@ scrp 2 16 1 9
 					addv ov71 40
 				else
 					doif va00 eq 2
-
+*change direction
 						negv ov10
 						addv ov71 10
 					else
 						doif va00 eq 1
-
+*flap up a bit
 							reps 3
 								mvby 0 -3
 							repe
@@ -136,7 +156,7 @@ scrp 2 16 1 9
 		endi
 	endi
 
-
+*if out flying and hunting
 	doif ov00 eq 1
 		doif carr eq null
 			plne 8200
@@ -151,7 +171,7 @@ scrp 2 16 1 9
 
 		gsub levl
 		gsub fly_
-
+*see if grazer around
 		rnge 1000
 		setv va00 0
 		inst
@@ -159,7 +179,7 @@ scrp 2 16 1 9
 			addv va00 1
 		next
 		slow
-
+*if there are enough, hunt one
 		doif va00 ge 7
 			rnge 400
 			setv va01 0
@@ -210,10 +230,10 @@ scrp 2 16 1 9
 		endi
 	endi
 
-
+*pounce on a grazer
 	doif ov00 eq 2
 		doif touc ov18 ownr gt 0
-
+*got it!
 			sndc "hawk"
 			doif ov10 lt 0
 				base ov38
@@ -227,7 +247,7 @@ scrp 2 16 1 9
 			setv ov00 3
 			accg 2
 		else
-
+*missed!
 			doif obst down le 10
 				doif ov10 lt 0
 					base ov40
@@ -262,12 +282,12 @@ scrp 2 16 1 9
 
 
 
-
+*back to nest
 	doif ov00 eq 3
 		gsub home
 	endi
 
-
+***pickup off of floor
 	doif ov00 eq 4
 		doif ov71 gt 0
 			doif obst down le 5
@@ -301,7 +321,7 @@ scrp 2 16 1 9
 		endi
 	endi
 
-
+**touching nest - fine movement
 	doif ov00 eq 5
 		plne 190
 		accg 0.1
@@ -368,7 +388,7 @@ scrp 2 16 1 9
 		setv ov70 rand 1200 2400
 
 
-
+*kill grazer and produce bones
 		doif touc targ ov18 gt 0
 
 			setv ov72 0
@@ -395,7 +415,7 @@ scrp 2 16 1 9
 
 
 
-
+***hop
 	doif ov00 eq 6
 
 
@@ -441,7 +461,8 @@ scrp 2 16 1 9
 	endi
 
 
-
+***SUBROUTINES***
+***HOME IN ON NEST
 	subr home
 		targ ov17
 		setv va00 posl
@@ -492,9 +513,9 @@ scrp 2 16 1 9
 		endi
 	retn
 
-
+***FLYING
 	subr fly_
-
+*turn around
 		snde "flap"
 		doif obst 0 lt 100
 			negv ov10
@@ -532,24 +553,26 @@ scrp 2 16 1 9
 		setv vely va01
 	retn
 
+*STAY CERTAIN DISTANCE ABOVE GROUND
 	subr levl
 
 		doif obst 3 lt 450
-
+*too low!
 			setv ov11 -1
 		else
 			doif obst 3 gt 500
 				setv ov11 1
-
+*too high!
 			endi
 		endi
 		doif obst 2 lt 150 and ov11 lt 0
-
+*close to ceiling!
 			negv ov11
 		endi
 		gsub trap
 	retn
 
+****DIE
 	subr die_
 
 		accg 7
@@ -580,7 +603,8 @@ scrp 2 16 1 9
 	retn
 
 
-
+**trapped routine - if roof and ceiling are close together
+*going to need to hop
 	subr trap
 		doif obst 2 le 150 and obst 3 le 100
 			setv ov73 ov00
@@ -599,11 +623,11 @@ scrp 2 16 1 9
 
 
 
-
+**End hawk timer script
 endm
 
 
-
+*****DEAD EAGLE TIMER
 scrp 2 10 17 9
 	doif pose lt 3
 		setv va00 pose
@@ -701,7 +725,7 @@ scrp 2 17 4 5
 
 endm
 
-
+***DUST CLOUD ENTERSCOPE
 scrp 1 1 21 1
 	lock
 	anim [0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7]
@@ -709,6 +733,7 @@ scrp 1 1 21 1
 	kill targ
 endm
 
+********Hawk drop
 scrp 2 16 1 5
 	setv ov10 1
 	setv ov00 1
@@ -717,6 +742,7 @@ scrp 2 16 1 5
 	tick 5
 endm
 
+*******Hawk pickup
 scrp 2 16 1 4
 	anim []
 	tick 0
@@ -729,7 +755,7 @@ endm
 
 
 
-
+*******REMOVAL
 rscr
 enum 2 16 1
 	kill targ

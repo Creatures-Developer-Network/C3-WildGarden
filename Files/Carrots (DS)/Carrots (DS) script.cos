@@ -11,6 +11,36 @@
 *# GB_Category = 2
 *# Agent Author = "Creature Labs"
 
+* ============================================================
+* Carrots (DS) — OV Cheat Sheet
+* ============================================================
+*
+* ov00:
+* - Primary carrot state variable
+* - Controls visibility, edibility, and regrowth
+* - Values:
+*   - 0 = Fresh / plucked / vended carrot (visible, edible)
+*   - 1 = Growth mode (invisible to creatures)
+*   - 2 = Documented as "growing & visible" but never set
+*
+* ov98:
+* - Pickup / collision sound control flag
+* - Set when carrot is picked up
+* - Used by collision script to play sound
+* - Values:
+*   - 0 = Normal state
+*   - 1 = Recently picked up (enable collision sound)
+*
+* ov99:
+* - Initial carrot / CA protection flag
+* - Prevents draining water and nutrients on first growth
+* - Cleared after first eat
+* - Values:
+*   - 1 = Initial carrot (no CA drain)
+*   - 0 = Normal carrot
+* ============================================================
+
+
 new: simp 2 11 9 "carr" 0 0 563
 attr 194
 bhvr 48

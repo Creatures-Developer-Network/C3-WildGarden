@@ -20,6 +20,20 @@
 ** the thermal vents.
 **
 
+* Variable reference
+*   ov01 = life force / age
+*   ov05 = life-stage marker (0=baby, 1=child, 2=adolescent, 3=adult)
+*   ov10 = horizontal velocity/facing (random numbers - often -1..1 or -2..2)
+*   ov11 = vertical velocity (similar ranges)
+*   ov30 = base pose index for animation (set per life stage)
+*   ov61 = timer/pose base for eggs/newborns (set to 30)
+*   ov70 = pregnancy flag (1 = pregnant)
+*   ov80 = egg drift/hatch flag used in egg script (0 drift, 1 landed -> hatch)
+*   ov86, ov87 = room monitor counters/acceleration used in room check subroutines for adult and egg
+*   ov99 = death marker (99 used to mark for death)
+*   va* variables = temporary/transient values used for random choices, counters, and computations
+*
+
 new: simp 2 15 18 "wysts" 92 0 rand 100 5000
 attr 199
 bhvr 48
@@ -44,6 +58,7 @@ scrp 2 15 18 12
 	kill ownr
 endm
 
+**Wyst timer script
 scrp 2 15 18 9
 ** Function this way when not being carried.
 	doif carr = null
@@ -93,7 +108,7 @@ scrp 2 15 18 9
 			gsub brth
 		endi
 
-
+***WYST SUBROUTINES***
 ** Direction based animation.
 		subr anim
 			doif ov10 < 0
@@ -109,6 +124,7 @@ scrp 2 15 18 9
 
 
 ** Setting the base poses & age variables
+* Transitions: as ov01 increases, ov05 is bumped when sufficient free space around (obstacle checks).
 		subr base
 			doif ov01 <= 100
 				setv ov05 0
@@ -222,12 +238,12 @@ scrp 2 15 18 9
 			untl ov11 <> 0
 		retn
 
-** Movement.
+** Movement: apply velocities
 		subr move
 			velo ov10 ov11
 		retn
 
-** Die, or be marked to die.
+** Die if not carried, or be marked to die.
 		subr deth
 			doif carr = null
 				kill ownr
@@ -301,9 +317,15 @@ scrp 2 15 18 9
 			accg ov87
 		retn
 	endi
+
+*end wyst timer script
 endm
+
+*wyst pickup script
 scrp 2 15 18 4
 endm
+
+*egg timer
 scrp 2 18 16 9
 	doif rtyp room ownr <> 9
 		kill targ
@@ -311,6 +333,7 @@ scrp 2 18 16 9
 	doif rtyp room ownr = 9
 		accg 1
 	endi
+* ov80 governs egg drift/hatch behaviour
 	doif ov80 = 0
 		gsub drft
 	elif ov80 = 1
@@ -325,6 +348,9 @@ scrp 2 18 16 9
 		endi
 		gsub htch
 	endi
+
+**EGG SUBROUTINES**
+*drift subroutine
 	subr drft
 		setv va70 rand 0 10
 		doif va70 = 1
@@ -340,6 +366,8 @@ scrp 2 18 16 9
 		gsub anim
 		gsub move
 	retn
+
+*obstacle check subroutine
 	subr obst
 		doif obst 0 < 50
 			setv ov10 1
@@ -355,12 +383,18 @@ scrp 2 18 16 9
 			setv ov80 1
 		endi
 	retn
+
+*animate subroutine
 	subr anim
 		anim [0 1 2 3 255]
 	retn
+
+*move subroutine: apply velocity
 	subr move
 		velo ov10 ov11
 	retn
+
+*hatch subroutine
 	subr htch
 		setv va90 0
 		setv va00 rand 2000 20000
@@ -398,8 +432,11 @@ scrp 2 18 16 9
 			stop
 		endi
 	retn
+
+*End egg timer script
 endm
 
+***REMOVAL
 rscr
 enum 2 15 18
 	kill targ

@@ -11,10 +11,25 @@
 *# GB_Category = 3
 *# Agent Author = "Creature Labs"
 
+***OV cheat sheet
+**OV00 state
+*0=random
+*1=attack
+
+**OV12 X velocity
+**OV13 Y velocity
+**OV14 is max X velocity
+**OV15 is max Y velocity
+
+**OV70 is target X position
+**OV71 is target Y position
+
+**OV90 indecision counter
+**OV91 is anger counter - when reaches 0 will see if anyone to attack
 
 new: simp 2 14 5 "gnat" 20 0 300
 attr 66
-
+*eat, pickup and act1
 bhvr 49
 tick 5
 anim [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 255]
@@ -30,9 +45,9 @@ mvsf game "ch_x" game "ch_y"
 
 setv ov61 40
 
-
+**gnat timer
 scrp 2 14 5 9
-
+*increase age
 	addv ov01 1
 
 	doif prop room targ 5 gt 0.2
@@ -40,7 +55,7 @@ scrp 2 14 5 9
 		stop
 	endi
 
-
+*if old enough
 	doif ov01 ge 100
 		doif totl 2 14 5 lt 20
 			rnge 1000
@@ -48,12 +63,12 @@ scrp 2 14 5 9
 			esee 2 14 5
 				addv va99 1
 			next
-
+*if less than 3 gnats in sight
 			doif va99 le 3
 				setv va98 totl 2 18 19
-
+*and less than 3 gnat eggs in the world
 				doif va98 lt 3
-
+*create some eggs
 					inst
 					setv va90 posl
 					setv va91 post
@@ -75,29 +90,30 @@ scrp 2 14 5 9
 
 	setv va00 0
 	setv va01 0
-
+*random movement
 	doif ov00 eq 0
-
+*set max velocity
 		setv ov14 5
 		setv ov15 5
 
 		subv ov90 1
 
+***SUBROUTINES***
+**wall subroutine
 		gsub wall
 
 		doif ov90 le 0
-
+**if not changing X direction because of walls..
 			doif va00 ne 1
 				doif rand 0 2 eq 0
-
+*change X-direction
 					negv ov10
 				endi
 				addv ov90 rand 1 3
 			endi
-
+**if not changing Y direction because of walls..
 			doif va01 ne 1
-
-
+*change Y direction
 				negv ov11
 
 				addv ov90 rand 2 5
@@ -117,7 +133,7 @@ scrp 2 14 5 9
 
 	endi
 
-
+***Attack movement
 	doif ov00 eq 1
 		gsub hunt
 		doif posx lt ov70 and ov10 lt 0
@@ -140,6 +156,7 @@ scrp 2 14 5 9
 
 	endi
 
+***HUNTING ROUTINE
 	subr hunt
 		rnge 200
 		setv va99 0
@@ -159,21 +176,22 @@ scrp 2 14 5 9
 		endi
 	retn
 
+********VELOCITY GIVER
 	subr velo
 		doif ov10 lt 0
-
+*trying to go left
 			negv ov14
 			doif ov12 gt ov14
 				subv ov12 2
 			endi
 			negv ov14
 		else
-
+*trying to go right
 			doif ov12 lt ov14
 				addv ov12 2
 			endi
 		endi
-
+*trying to go down
 		doif ov11 lt 0
 
 			negv ov15
@@ -182,33 +200,34 @@ scrp 2 14 5 9
 			endi
 			negv ov15
 		else
-
+*trying to go up
 			doif ov13 lt ov15
 				addv ov13 2
 			endi
 		endi
-
+*give velocity
 		setv velx ov12
 		setv vely ov13
 	retn
 
+********AVOID WALLS ROUTINE
 	subr wall
-
+*change direction to right
 		doif obst 0 lt 100 and ov10 lt 0
 			negv ov10
 			setv va00 1
 		endi
-
+*change direction to left
 		doif obst 1 lt 100 and ov10 gt 0
 			negv ov10
 			setv va00 1
 		endi
-
+*change direction to up
 		doif obst 2 lt 50 and ov11 lt 0
 			negv ov11
 			setv va01 1
 		endi
-
+*change direction to down
 		doif obst 3 lt 100 and ov11 gt 0
 			negv ov11
 			setv va01 1
@@ -216,9 +235,10 @@ scrp 2 14 5 9
 	retn
 
 
-
+***end gnat timer script
 endm
 
+**activate 1
 scrp 2 14 5 1
 	setv vely -20
 	targ from
@@ -227,6 +247,7 @@ scrp 2 14 5 1
 	endi
 endm
 
+**pickup script
 scrp 2 14 5 4
 	targ from
 	doif fmly eq 4
@@ -235,6 +256,7 @@ scrp 2 14 5 4
 	mesg writ ownr 5
 endm
 
+**eat script
 scrp 2 14 5 12
 	targ from
 	doif fmly eq 4
@@ -243,6 +265,7 @@ scrp 2 14 5 12
 	kill ownr
 endm
 
+**gnat egg timer
 scrp 2 18 19 9
 	inst
 	setv va00 posl
@@ -259,7 +282,7 @@ scrp 2 18 19 9
 			kill targ
 			stop
 		endi
-
+*eat, pickup and act1
 		bhvr 49
 		tick 5
 		anim [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 255]
@@ -283,7 +306,7 @@ endm
 
 
 
-
+********REMOVAL
 rscr
 enum 2 14 5
 	kill targ

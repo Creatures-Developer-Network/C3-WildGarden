@@ -11,6 +11,44 @@
 *# GB_Category = 3
 *# Agent Author = "Creature Labs"
 
+*===========================================================
+* AGENT NOTES – GB Wasp (C3 Conversion)
+*===========================================================
+* Overview:
+* - This is a raw, buggy, unsupported conversion of the C3 wasp agent.
+* - Behaviours include roaming, hunting food, retaliating when pushed, and dying/rotting.
+* - Some variables and routines are unused or redundant.
+
+* Object Variables (ovXX):
+* - ov00 = State (0 = roam, 1 = seek food, 99 = die)
+* - ov01 = Age counter (used in death routine)
+* - ov02 = Hunger/energy level (decreases over time, increased when eating)
+* - ov10/ov11 = Movement direction (X/Y)
+* - ov16 = Current target (food/enemy)
+* - ov17 = Attacker/pusher reference
+* - ov61 = Bioenergy (life force, corpse state)
+* - ov72 = Food energy gain (+400 when eating)
+* - ov73 = Hunger threshold (400)
+* - ov74 = Fullness threshold (800)
+* - ov88 = Attack timer (counts down from 80)
+* - UNUSED: ov05 (life stage), ov06 (gender), ov20 (sex drive), ov75 (food flag), ov89 (aggression flag)
+
+* Subroutines:
+* - Active: die_, gfod (get food), atak (attack), roam, obst (obstacle check),
+*           vect (vector choice), anim (animation), move, find (search), hunt (chase target)
+* - Unused: swrm (swarming behavior, never called), near (commented out in attack)
+
+* Known Redundancies / Issues:
+* - Duplicate death check in timer script.
+* - ov05, ov06, ov20, ov75, ov89 are initialized but never used.
+* - swrm and near subroutines are defined/commented but not integrated.
+* - Corpse script checks carr = null twice (redundant).
+* - Attack routine has commented-out feeding logic.
+* - Obstacle routine has commented-out floor detection.
+
+*===========================================================
+
+
 new: simp 2 14 6 "wasp" 221 0 300
 perm 100
 tick 6
@@ -22,19 +60,20 @@ elas 10
 bhvr 17
 setv ov00 0
 setv ov01 2000
-setv ov02 800
-setv ov05 2
-setv ov06 rand 0 1
+setv ov02 800ple
+*setv ov05 2
+*setv ov06 rand 0 1
 setv ov10 1
 setv ov11 -1
 seta ov16 null
 seta ov17 null
-setv ov20 0
+*usually sex drive, but no mating behaviour is coded
+*setv ov20 0
 setv ov61 45
 setv ov72 400
 setv ov73 400
 setv ov74 800
-setv ov75 1
+*setv ov75 1
 anim [5 7]
 mvsf game "ch_x" game "ch_y"
 setv vely 0
@@ -49,17 +88,20 @@ endm
 scrp 2 14 6 1
 	seta ov17 from
 	setv ov88 80
-	setv ov89 1
+*	setv ov89 1
 	stim writ from 88 1
 	targ ownr
 
 endm
 
+*Wasp timer script
 scrp 2 14 6 9
+*metabolism
 	addv ov01 1
 	subv ov02 1
-	addv ov20 1
+*	addv ov20 1
 
+*if hungry set state to get food
 	doif ov02 < ov73
 		setv ov00 1
 	endi
@@ -72,11 +114,13 @@ scrp 2 14 6 9
 	doif ov00 eq 99
 		gsub die_
 	endi
+
 **Someone pushed you?
 	doif ov17 <> null
 		doif ov88 > 0
 			subv ov88 1
 			doif ov88 > 40
+**Attack!
 				gsub atak
 			endi
 			doif ov88 = 0
@@ -84,21 +128,24 @@ scrp 2 14 6 9
 			endi
 		endi
 	endi
+
+***STATE CHECKING***
 ***ov00 should be the state
 ** 0 = Roaming
-** 1 = Looking Food Food
-** 2 Unused but in a comment
+** 1 = Looking for Food
+** 2 Unused but in a comment: possibly intended to be 'if well-fed, seek a mate'.
 ** 99 = Die!
 	doif ov00 = 1
 		gsub gfod
 	endi
 
-
+*If state is 0, roam
 	doif ov00 eq 0
 		gsub roam
 	endi
 
-
+***SUBROUTINES****
+*Die
 	subr die_
 		setv va50 posx
 		setv va51 posy
@@ -129,6 +176,7 @@ scrp 2 14 6 9
 		kill targ
 	retn
 
+*Get food
 	subr gfod
 		inst
 		setv va47 2
@@ -166,6 +214,7 @@ scrp 2 14 6 9
 		stop
 	retn
 
+*attack
 	subr atak
 		snde "wasp"
 		inst
@@ -181,6 +230,7 @@ scrp 2 14 6 9
 			targ ownr
 			gsub hunt
 *			gsub near
+*note 'near' is not included in the code: this was probably intended to check nearness before attacking but the subroutine is missing
 *			doif va40 eq 1
 			doif touc ownr ov16 <> 0
 *				targ ownr
@@ -207,6 +257,7 @@ scrp 2 14 6 9
 		endi
 	retn
 
+*Swarm - never used
 	subr swrm
 		setv va88 0
 		esee 2 14 6
@@ -239,6 +290,7 @@ scrp 2 14 6 9
 		stop
 	retn
 
+*roam randomly
 	subr roam
 		setv va66 rand 0 12
 		doif va66 lt 5
@@ -264,6 +316,7 @@ scrp 2 14 6 9
 		stop
 	retn
 
+*obstacle checking
 	subr obst
 ***Assuming this is left, right, up, and down
 **Might be wise to change this to check the LEFT, RGHT, _UP_, and DOWN looking at how this differs from how obst works in DS
@@ -277,12 +330,13 @@ scrp 2 14 6 9
 		doif obst 2 lt 60
 			setv ov11 1
 		endi
-*** Can't detect being close to the floor?
+*** Can't detect being close to the floor? - note that wasps often travel along the floor
 *		doif obst 3 lt 100
 *			setv ov11 -1
 *		endi
 	retn
 
+*Choose a vector
 	subr vect
 		setv va10 rand 8 14
 		setv va11 rand 4 8
@@ -303,6 +357,7 @@ scrp 2 14 6 9
 
 	retn
 
+*animate
 	subr anim
 		doif ov12 eq 0
 			loop
@@ -330,12 +385,14 @@ scrp 2 14 6 9
 		endi
 	retn
 
+*movement - apply velocity
 	subr move
 
 		setv velx va10
 		setv vely va11
 	retn
 
+*find subroutine - pythagorean searching
 	subr find
 		inst
 		setv va99 99999999
@@ -375,7 +432,7 @@ scrp 2 14 6 9
 		slow
 	retn
 
-
+*hunt subroutine - get closer to target
 	subr hunt
 		inst
 		targ ov16
@@ -402,13 +459,18 @@ scrp 2 14 6 9
 		endi
 	retn
 
+*end wasp timer script
 endm
+
+
 ***Bumped into a Wall!
 scrp 2 14 6 6
 	inst
 	setv ov12 0
 	setv ov13 0
 endm
+
+
 ***Rotting Dead Wasp
 scrp 2 10 28 9
 	inst
@@ -423,7 +485,7 @@ scrp 2 10 28 9
 endm
 
 
-
+***REMOVAL
 
 rscr
 
@@ -432,6 +494,7 @@ enum 2 14 6
 next
 scrx 2 14 6 9
 scrx 2 14 6 6
+scrx 2 14 6 1
 
 enum 2 10 28
 	kill targ

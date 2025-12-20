@@ -11,6 +11,21 @@
 *# GB_Category = 5
 *# Agent Author = "Creature Labs"
 
+* Variable reference
+* ov01 = age/life (units: +2 per timer tick; dies at >=1500)
+* ov02 = energy (units: starts 550 for newborn; eating adds +5000; thresholds: <500 starving, 500-1499 hungry, >=1500 full)
+* ov05 = life stage (0=baby, 1=child, 2=adult)
+* ov10 = horizontal facing (-1 left, 1 right)
+* ov11 = vertical direction (1 down, -1 up) 
+* ov30..ov34 = pose base indices for various animations (baby/child/adult/turn/swim frames)
+* ov61 = bioenergy
+* ov70 = pregnancy flag
+* ov73 = maturation state (1 baby, 2 child-ready state, 3 adult-ready)
+* ov74 = breeding cooldown timer (prevents rapid breeding)
+* ov75 = prey genus/classifier (e.g., 3=seeds, 13=bugs)
+* ov76 = prey species/subclass
+* va* variables are transient temporary values used in loops and calculations
+
 new: simp 2 15 14 "angel" 153 0 4100
 attr 199
 BHVR 48
@@ -43,12 +58,12 @@ elif va51 = 2
 	setv ov71 0
 	setv ov76 2
 elif va51 = 3
-**Seeds again
+**Seeds again - unused
 	setv ov75 3
 	setv ov71 0
 	setv ov76 3
 elif va51 = 4
-**Also Seeds
+**Also Seeds - unused
 	setv ov75 3
 	setv ov71 0
 	setv ov76 4
@@ -152,6 +167,8 @@ scrp 2 18 14 9
 			anim [1 3 0 2 255]
 		endi
 	retn
+
+* move: set velocity using ov10/ov11
 	subr move
 		velo ov10 ov11
 	retn
@@ -260,23 +277,25 @@ scrp 2 18 14 9
 				setv ov75 3
 				setv ov71 0
 				setv ov76 2
+*Unused
 			elif va51 = 3
 				setv ov75 3
 				setv ov71 0
 				setv ov76 3
+*Unused
 			elif va51 = 4
 				setv ov75 3
 				setv ov71 0
 				setv ov76 4
 			endi
 
-*Pose bases
+*Pose bases for newborn
 			setv ov30 0
 			setv ov31 10
 			setv ov32 20
 			setv ov33 30
 			setv ov34 41
-*initial poses
+*initial poses for spawned fish
 			setv ov61 50
 			setv ov73 1
 
@@ -295,6 +314,7 @@ scrp 2 18 14 9
 			slow
 			kill ownr
 		else
+* If the egg is carried, mark state so egg script knows not to hatch
 			setv ov66 66
 		endi
 	retn
@@ -328,7 +348,7 @@ scrp 2 15 14 9
 
 
 *give birth if pregnant
-	doif  = 1
+	doif ov70 = 1
 		gsub eggs
 		setv ov70 0
 		gsub deth
@@ -354,7 +374,7 @@ scrp 2 15 14 9
 * Age and change pose bases, put in an inst to stop invalid map positions.
 	inst
 	doif ov73 = 1 and ov01 >= 200 and ov01 <= 400 and obst left > 40 and obst rght > 40 and obst _up_ > 40 and obst down > 40 and rtyp room ownr = 9
-
+*Become child
 		setv ov05 1
 		setv ov73 2
 		setv ov30 51
@@ -373,7 +393,7 @@ scrp 2 15 14 9
 			setv ov10 -1
 		endi
 		gsub swim
-
+*become adult
 	elif ov73 = 2 and ov01 >= 401 and obst left > 40 and obst rght > 40 and obst _up_ > 40 and obst down > 40 and rtyp room ownr = 9
 		setv ov05 2
 		setv ov73 3
@@ -414,6 +434,7 @@ scrp 2 15 14 9
 		endi
 
 	elif ov02 >= 1500
+*If full, sometimes swim forwards for a while
 		setv va44 rand 1 10
 		doif va44 = 5
 			doif ov10 = 1
@@ -444,7 +465,7 @@ scrp 2 15 14 9
 		endi
 	elif ov02 < 500 and ov02 > 0
 
-* Track down and eat food.
+* Hungry: Track down and eat food.
 		gsub hunt
 		gsub obst
 		gsub swim
@@ -611,9 +632,11 @@ scrp 2 15 14 9
 					slow
 				endi
 			endi
+* If carried by player, mark for death (hold condition)
 		elif carr <> null and carr = pntr
 			setv ov99 5
 		elif carr <> null and carr <> pntr
+*If carried by something else, kill ownr immediately
 			targ ownr
 			kill targ
 		endi
@@ -668,7 +691,7 @@ scrp 2 15 14 9
 		endi
 	retn
 
-
+* mate: attempt to find mates in range and set pregnancy flag (ov70). 
 	subr mate
 		rnge 50
 		inst
@@ -686,6 +709,7 @@ scrp 2 15 14 9
 		endi
 	retn
 
+* eggs: spawn eggs if population density allows; avoids overcrowding
 	subr eggs
 * Check how many adults are around, don't want to overcrowd!
 		setv va34 0
@@ -732,7 +756,7 @@ scrp 2 15 14 9
 				endi
 
 			repe
-*tell the mother she's not pregnant any more.
+*tell the mother she's not pregnant any more and go to the death subroutine.
 			targ ownr
 			setv ov70 0
 			gsub deth
@@ -759,6 +783,8 @@ scrp 2 15 14 9
 		endi
 	retn
 
+* hunt: search for prey matching ov75/ov71 within range and steer toward average relative position
+* high-level: scan multiple times (va60 up to 7) until prey found or attempts exhausted
 	subr hunt
 		setv va60 0
 		loop
@@ -809,10 +835,12 @@ scrp 2 15 14 9
 						setv ov75 3
 						setv ov71 0
 						setv ov76 2
+*unused
 					elif va51 = 3
 						setv ov75 3
 						setv ov71 0
 						setv ov76 3
+*unused
 					elif va51 = 4
 						setv ov75 3
 						setv ov71 0
@@ -827,8 +855,10 @@ scrp 2 15 14 9
 			adds va00 " "
 			adds va00 vtos ov71
 
+* Compute average relative position
 			divv va51 va53
 			divv va52 va53
+* Adjust facing and turn velocities based on relative position
 			doif va51 < 0 and ov10 = -1
 				setv ov12 rand -2 -1
 			elif va51 < 0 and ov10 = 1
@@ -852,7 +882,7 @@ scrp 2 15 14 9
 				setv ov13 rand 1 2
 			endi
 		else
-
+*No prey found - random swimming
 			gsub rndm
 		endi
 	retn
@@ -969,35 +999,35 @@ scrp 2 15 14 9
 		endi
 	retn
 
-* Left start turn.
+* Left start turn animation
 	subr lstn
 		base ov32
 		anim [0 1 2 3 4 5 6 7 8 9 10]
 		over
 	retn
 
-* Right start turn.
+* Right start turn animation
 	subr rstr
 		base ov33
 		anim [0 1 2 3 4 5 6 7 8 9 10]
 		over
 	retn
 
-* Left start turn reversed.
+* Left start turn reversed animation
 	subr lstr
 		base ov32
 		anim [10 9 8 7 6 5 4 3 2 1 0]
 		over
 	retn
 
-* Right start turn reversed.
+* Right start turn reversed animation
 	subr rstn
 		base ov33
 		anim [10 9 8 7 6 5 4 3 2 1 0]
 		over
 	retn
 
-* Front swimming.
+* Front swimming animation
 	subr ftsw
 		velo 0 0
 		velo -1 1
@@ -1011,7 +1041,7 @@ scrp 2 15 14 9
 		anim [0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9]
 	retn
 
-* Left or Right facing swimming.
+* Left or Right facing swimming animation (based on ov10)
 	subr swim
 		doif ov10 = 1
 			base ov31
@@ -1024,7 +1054,7 @@ scrp 2 15 14 9
 	retn
 endm
 
-* Fish Detritus Timer
+* Fish Detritus Timer animates and cleans up dead_fish objects created in death
 scrp 2 10 40 9
 	doif ov77 = 5
 		wait 100
@@ -1058,7 +1088,7 @@ scrp 2 15 14 12
 		setv va60 1
 		setv va70 209
 	endi
-
+* Create dead_fish detritus depending on life stage
 *Do this if baby
 	doif ov05 = 0
 		doif ov10 < 0

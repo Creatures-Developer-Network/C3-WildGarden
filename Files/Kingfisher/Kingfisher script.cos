@@ -11,6 +11,26 @@
 *# GB_Category = 3
 *# Agent Author = "Creature Labs"
 
+* ===== Kingfisher OV Reference =====
+* ov00 = state (0 roam, 1 flying to branch, 2 find fish, 3 fishing dive, 4 return to nest, 5 sitting on branch, 98 asleep, 99 dead)
+* ov01 = age
+* ov02 = energy
+* ov05 = sleep type behaviour (1 is nest-sleeper, 2 is branch-sleeper)
+* ov06 = gender
+* ov10 = x direction (-1,0,1)
+* ov11 = y direction (-1,0,1)
+* ov16 = hunt target
+* ov17 = branch target
+* ov18 = carried fish
+* ov19 = nest
+* ov72 = energy gain per food
+* ov73 = hunger threshold
+* ov74 = full threshold
+* ov75 = has fish flag
+* ov77 = wetness (unused)
+* ==================================
+
+
 *Nest
 new: simp 2 17 3 "king" 3 50 50
 accg 0
@@ -88,23 +108,27 @@ scrp 2 17 3 5
 
 	mvto va00 va01
 	setv vely 0
-*link the two together~
+*link the nest and kingfisher together
 	seta va19 targ
 	targ ov19
 	seta ov19 va19
 endm
+
 ***Kingfisher eat
 scrp 2 15 10 12
 	stim writ from 80 4
 	kill ownr
 
 endm
+
 ***Kingfisher Timer
 scrp 2 15 10 9
 	inst
+*metabolism
 	addv ov01 1
 	subv ov02 1
 	addv ov65 1
+*starve to death
 	doif ov02 < 0
 		setv ov00 99
 	endi
@@ -120,6 +144,7 @@ scrp 2 15 10 9
 		seta ov17 va88
 	endi
 
+*obstacle checking
 	doif obst 0 lt 30
 		setv ov10 1
 		setv ov11 -1
@@ -136,33 +161,41 @@ scrp 2 15 10 9
 		setv ov11 -1
 	endi
 
+*if flagged for death, die
 	doif ov00 eq 99
 		gsub die_
 	endi
 
 *If dusk or night and awake
 	doif time ge 3 and ov00 = 0
+*If you have a nest, return to it
 		doif ov19 <> null
 			setv ov00 4
 		endi
 	endi
+
 *if dawn or morning and asleep
 	doif time le 1 and ov00 = 98
 *		doif ov00 eq 5
+*If sleep type is branch-percher, set state to roam
 		doif ov05 eq 2
 			setv ov00 0
 			accg 3
 		endi
+*If sleep type is nester, set state to return to nest
 		doif ov05 eq 1
 			setv ov00 4
 		endi
 *		endi
 	endi
-*if hungry and roaming
+
+*if hungry and roaming, return to nest.
 	doif ov02 lt ov73 and ov00 = 0
+*If sleep type is branch-percher, set state to go to branch
 		doif ov05 eq 2
 			setv ov00 1
 		endi
+*If sleep type is nester, set state to go to nest
 		doif ov05 eq 1
 			doif ov00 ne 5
 *				setv ov00 5
@@ -189,6 +222,7 @@ scrp 2 15 10 9
 	endi
 *endi
 
+* perched on branch state: eat carried fish if present
 	doif ov00 eq 5
 		doif ov75 eq 1
 			kill ov18
@@ -202,9 +236,12 @@ scrp 2 15 10 9
 			setv ov75 0
 		endi
 	endi
+
+*if flagged for death, die
 	doif ov00 eq 99
 		gsub die_
 	endi
+
 *if full up
 	doif ov02 gt ov73
 		doif ov05 eq 1
@@ -212,6 +249,7 @@ scrp 2 15 10 9
 		endi
 	endi
 
+*go to nest
 	doif ov00 eq 4
 		doif seee ownr ov17 = 1
 			gsub gbed
@@ -220,15 +258,17 @@ scrp 2 15 10 9
 		endi
 	endi
 
-
+*actively fish
 	doif ov00 eq 3
 		gsub fish
 	endi
 
+*look for fish
 	doif ov00 eq 2
 		gsub gfsh
 	endi
 
+*go to branch
 	doif ov00 eq 1
 		doif seee ownr ov17 = 1
 			gsub gbrh
@@ -237,7 +277,7 @@ scrp 2 15 10 9
 		endi
 	endi
 
-
+*roam
 	doif ov00 eq 0
 		gsub roam
 	endi
@@ -245,13 +285,14 @@ scrp 2 15 10 9
 
 *	SUBROUTINES
 
-
+*die
 	subr die_
 		setv va50 posx
 		setv va51 posy
 		setv va52 ov10
 		subv va50 20
 		subv va51 8
+*spawn kingfisher corpse and transfer facing direction
 		new: simp 2 10 8 "king" 8 16 2000
 		accg 2
 		perm 99
@@ -274,18 +315,22 @@ scrp 2 15 10 9
 		kill targ
 	retn
 
+*look for fish
 	subr gfsh
+*set temporary variables to all critters (including fish)
 		setv va47 2
 		setv va48 15
 		setv va49 0
+*Go to find subroutine to find fish - get ov16
 		gsub find
-
+*set targ to ov16 (from find subroutine)
 		targ ov16
-
+*if targ exists:
 		doif targ ne null
+*Make the kingfisher check dive conditions with ner2
 			targ ownr
-* use special near (ner2) for kingfisher
 			gsub ner2
+*Set velocity towards ov16 and update state to diving
 			doif va40 eq 1
 				setv velx 1
 				targ ov16
@@ -303,6 +348,7 @@ scrp 2 15 10 9
 					pose 1
 				endi
 			endi
+*If no fish are found, check hunger and reset state to 2 (will try gfish again) if hungry, or roam if not hungry.
 		else
 			targ ownr
 			doif ov02 <= ov74
@@ -315,11 +361,14 @@ scrp 2 15 10 9
 		stop
 	retn
 
+*diving and grabbing fish
 	subr fish
 		targ ov16
+*If fish exists, make kingfisher play dive animation
 		doif targ <> null
 			targ ownr
 			gsub ani2
+*if kingfisher touches fish, set carry flag and update state to return to branch to feed
 			doif touc ownr ov16 <> 0
 				mesg writ ov16 4
 				setv ov75 1
@@ -333,6 +382,7 @@ scrp 2 15 10 9
 *					endi
 				endi
 			endi
+*If no target, kingfisher returns to roaming
 		else
 			targ ownr
 			setv ov00 0
@@ -341,13 +391,15 @@ scrp 2 15 10 9
 		stop
 	retn
 
+*go to branch
 	subr gbrh
+*Move towards branch target
 		seta ov16 ov17
 		targ ov16
 		doif targ <> null
 			targ ownr
 			gsub hunt
-
+*Perch on branch when reached and update pose based on facing direction
 			doif touc ownr ov16 <> 0
 				targ ov16
 				setv va50 posx
@@ -366,11 +418,13 @@ scrp 2 15 10 9
 				else
 					pose 1
 				endi
+*if carrying fish, gobble it up
 				doif ov75 eq 1
 					gsub gobl
 				endi
 				stop
 			endi
+*If branch missing, clear ov17 and return to roaming
 		else
 			targ ownr
 			seta ov17 null
@@ -385,16 +439,19 @@ scrp 2 15 10 9
 		stop
 	retn
 
-
+*gobble up food - eating animation and energy restore
 	subr gobl
+*sets targ to ov18
 		targ ov18
 		doif targ <> null
 			targ ownr
+*sets animation of kingfisher based on what direction it's facing
 			doif ov10 le 0
 				base ov36
 				anim [0 1 0 1 0 1]
 				over
 				inst
+*kill carried fish if present
 				doif ov18 ne null
 					kill ov18
 					seta ov18 null
@@ -402,11 +459,13 @@ scrp 2 15 10 9
 				slow
 				setv ov75 0
 			endi
+*sets animation of kingfisher based on what direction it's facing
 			doif ov10 gt 0
 				base ov37
 				anim [0 1 0 1 0 1]
 				over
 				inst
+*kill carried fish if present
 				doif ov18 ne null
 					kill ov18
 					seta ov18 null
@@ -414,6 +473,7 @@ scrp 2 15 10 9
 				slow
 				setv ov75 0
 			endi
+*add energy and check if full
 			addv ov02 ov72
 			doif ov02 gt ov74
 				setv ov00 0
@@ -428,7 +488,9 @@ scrp 2 15 10 9
 		endi
 	retn
 
+*return to nest
 	subr gbed
+*set target to nest
 		seta ov16 ov19
 		targ ov16
 		doif targ <> null
@@ -436,11 +498,12 @@ scrp 2 15 10 9
 			gsub hunt
 			doif touc ownr ov16 <> 0
 				targ ownr
-
+*move towards nest and adjust velocity
 				setv velx 0
 				setv vely 0
 				accg 0
 				base 0
+*update pose based on perch or nest sleeping type
 				doif ov05 eq 2
 					doif ov10 <= 0
 						pose 40
@@ -460,14 +523,17 @@ scrp 2 15 10 9
 						setv ov00 0
 					endi
 				endi
+*call sleep routine if reached nest
 				gsub slep
 				stop
 			endi
+*if nest doesn't exist, clear ov19 and roam
 		else
 			targ ownr
 			seta ov19 null
 			setv ov00 0
 		endi
+*return to normal movement
 		targ ownr
 		gsub vect
 		gsub anim
@@ -476,13 +542,14 @@ scrp 2 15 10 9
 
 	retn
 
+*sleep state
 	subr slep
 		setv ov00 98
 		tick 20
 		stop
 	retn
 
-
+*Random wandering and obstacle avoidance
 	subr roam
 		setv va66 rand 0 10
 
@@ -496,12 +563,13 @@ scrp 2 15 10 9
 		doif va66 gt 5
 			setv ov11 rand -1 1
 		endi
+*obstacle down
 		doif obst down lt 150
 			setv ov11 -1
 			setv vely -10
 		endi
 
-
+*water-shyness smell check
 		setv va60 prop grid ownr left 5
 		setv va61 prop grid ownr rght 5
 		setv va62 prop grid ownr _up_ 5
@@ -512,6 +580,7 @@ scrp 2 15 10 9
 			setv ov10 1
 		endi
 
+*obstacles left, right, up
 		doif obst left lt 150
 			setv ov10 1
 			setv velx 10
@@ -530,20 +599,21 @@ scrp 2 15 10 9
 *			setv ov11 -1
 *		endi
 
-
+*return to normal movement
 		gsub vect
 		gsub anim
 		gsub move
 		stop
 	retn
 
+*Random movement vector
 	subr vect
 		setv va10 rand 6 20
 		setv va11 rand 15 20
 	retn
 
 
-
+*Standard flight animation
 	subr anim
 		doif ov10 eq 0
 			loop
@@ -564,6 +634,7 @@ scrp 2 15 10 9
 		endi
 	retn
 
+* ani2: dive / ascent animation during fishing
 	subr ani2
 		doif vely ge 0
 			doif ov10 lt 0
@@ -590,6 +661,7 @@ scrp 2 15 10 9
 
 	retn
 
+*apply velocity from direction + vector
 	subr move
 		mulv va10 ov10
 		mulv va11 ov11
@@ -672,6 +744,7 @@ scrp 2 15 10 9
 		endi
 	retn
 
+*hun2 - currently unused?
 	subr hun2
 		targ ov16
 		setv va50 posx
@@ -692,8 +765,12 @@ scrp 2 15 10 9
 	retn
 
 
-
-	subr ner2
+* ner2:
+* Special kingfisher dive check.
+* Prevents diving unless:
+*  - enough nearby critters exist
+*  - target fish is vertically aligned beneath bird
+subr ner2
 		setv va66 0
 * changed to allow for all critters?
 		esee 2 15 0
@@ -731,12 +808,14 @@ scrp 2 15 10 9
 
 
 endm
-***Kingfisher Dropped
+
+***Kingfisher Dropped - reset state to roam
 scrp 2 15 10 5
 	setv ov00 0
 	accg 3
 endm
-***Rotting Kingfisher
+
+***Rotting Kingfisher: alters room CAs and then self-destructs
 scrp 2 10 8 9
 	addv ov01 1
 	doif ov01 gt 10
@@ -763,10 +842,12 @@ scrp 2 10 8 9
 	endi
 endm
 
+*Nest timer
 scrp 2 17 3 9
 	doif name "placed" eq 0
 		stop
 	endi
+*Spawn a new kingfisher if linked bird no longer exists
 	doif ov19 eq null
 		setv va50 posx
 		setv va51 posy
@@ -817,14 +898,14 @@ scrp 2 17 3 9
 
 		mvto va50 va51
 		setv vely 0
-
+*link new bird to nest
 		seta va19 targ
 		targ ov19
 		seta ov19 va19
 	endi
 endm
 
-
+***REMOVE
 rscr
 
 enum 2 15 10

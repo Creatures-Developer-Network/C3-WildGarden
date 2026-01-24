@@ -28,14 +28,20 @@ tick 15
 setv ov81 rand 8 15
 
 
+***Seed OVs cheat sheet
+**OV00 is state
+*0=normal, 1=dormant
+
+
+**OV80 bounce count
+**OV81 max bounces
+**OV82 dormancy counter
 
 
 
 
 
-
-
-
+**Cacbana seed eat
 scrp 2 3 9 12
 	lock
 	stim writ from 77 3
@@ -43,7 +49,7 @@ scrp 2 3 9 12
 	kill ownr
 endm
 
-
+**Cacbana seed collision
 scrp 2 3 9 6
 	doif ov00 eq 0
 		doif wall ne _up_
@@ -75,7 +81,7 @@ scrp 2 3 9 6
 		pose 0
 	endi
 
-
+***Cacbana seed grow subroutine
 	subr grow
 		inst
 		pose 0
@@ -112,16 +118,18 @@ scrp 2 3 9 6
 		kill ownr
 	retn
 
+***Cacbana seed dormancy subroutine
 	subr dorm
 		setv ov82 rand 10 100
 		tick 200
 		setv ov00 1
 	retn
+***End of cacbana seed collision script
 endm
 
-
+***Cacbana seed timer script
 scrp 2 3 9 9
-
+*if dormant
 	doif ov00 eq 0
 		doif ov80 lt ov81
 			doif fall eq 0 and carr eq null
@@ -135,15 +143,15 @@ scrp 2 3 9 9
 	doif ov00 eq 1
 
 		subv ov82 1
-
+*die if waiting too long
 		doif ov82 le 0
 			altr room targ 3 0.5
 			altr room targ 4 0.5
 			kill ownr
 		endi
-
+*Is the room hot enough?
 		doif prop room targ 2 ge 0.1
-
+*Population check
 			setv va00 0
 			inst
 			esee 2 5 2
@@ -156,13 +164,14 @@ scrp 2 3 9 9
 				gsub grow
 			endi
 		endi
-
+*Else, bounce away
 		pose 0
 		velo rand -20 20 rand -10 -20
 		anim [0 1 2 3 4 5 6 7 255]
 
 	endi
 
+***Cacbana seed grow subroutine
 	subr grow
 		setv va50 posl
 		setv va51 post
@@ -197,10 +206,11 @@ scrp 2 3 9 9
 
 		kill ownr
 	retn
+***End of cacbana seed timer script
 endm
 
 
-
+***Cacbana plant timer script
 scrp 2 5 2 9
 
 
@@ -232,7 +242,7 @@ scrp 2 5 2 9
 
 
 
-
+*metabolism - reduce energy and die if none left
 	subv ov55 0.005
 	doif ov55 le 0
 		setv ov00 9
@@ -241,21 +251,21 @@ scrp 2 5 2 9
 
 	gsub uptk
 
-
+*Dying
 	doif ov00 eq 9
 		setv va00 0
 		setv va01 0
 		doif ov16 ne null
-
+*If flower exists, tell it to die
 			mesg writ ov16 301
 			setv va00 1
 		endi
-
+*If second flower exists, tell it to die
 		doif ov17 ne null
 			mesg writ ov17 301
 			setv va01 1
 		endi
-
+*If both flowers are gone, continue to die
 		doif va00 eq 0 and va01 eq 0
 			setv ov69 0
 			setv va99 ov32
@@ -309,7 +319,7 @@ scrp 2 5 2 9
 
 
 
-
+*Growing
 	doif ov00 eq 0
 		setv va00 pose
 
@@ -333,7 +343,7 @@ scrp 2 5 2 9
 		endi
 	endi
 
-
+*adult
 	doif ov00 eq 1
 		subv ov66 1
 *Trigger opening at night instead of in the dark
@@ -361,6 +371,7 @@ scrp 2 5 2 9
 	endi
 	targ ownr
 
+*exposed-core adult, opening
 	doif ov00 eq 2
 		subv ov66 1
 
@@ -393,6 +404,7 @@ scrp 2 5 2 9
 	endi
 	targ ownr
 
+*withdrawing core
 	doif ov00 eq 3
 		subv ov66 1
 
@@ -442,7 +454,7 @@ scrp 2 5 2 9
 	endi
 
 
-
+*Flower position subroutine
 	subr flwr
 		targ ownr
 
@@ -509,7 +521,7 @@ scrp 2 5 2 9
 		endi
 	retn
 
-
+*closing up subroutine
 	subr rmve
 
 		setv va00 ov33
@@ -544,7 +556,7 @@ scrp 2 5 2 9
 	retn
 
 
-
+*uptake subroutine
 	subr uptk
 		setv va00 prop room targ 4
 		doif va00 ge ov56 and ov55 lt ov57
@@ -555,11 +567,11 @@ scrp 2 5 2 9
 		endi
 
 	retn
-
+*End of cacbana plant timer script
 endm
 
 
-
+***Cacbana flower timer script
 scrp 2 7 3 9
 	doif pose lt 4
 		setv va00 pose
@@ -610,10 +622,12 @@ scrp 2 7 3 9
 	endi
 endm
 
+***Cacbana flower pollination script
 scrp 2 7 3 303
 	setv ov70 1
 endm
 
+***Flower die
 scrp 2 7 3 301
 	targ ov16
 	doif ov16 eq ownr
@@ -626,7 +640,7 @@ scrp 2 7 3 301
 endm
 
 
-
+***REMOVE
 rscr
 enum 2 5 2
 	kill targ
